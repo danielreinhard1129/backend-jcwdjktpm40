@@ -1,46 +1,71 @@
-import { db } from "../config/db.js";
+import { User } from "../generated/prisma/client.js";
+import { prisma } from "../lib/prisma.js";
 import { ApiError } from "../utils/api-error.js";
-import { getData, writeData } from "../utils/data.js";
 
 export const getUsersService = async () => {
-  const query = "select * from purwadhika.users";
-  const result = await db.query(query);
-  return result.rows;
+  const users = await prisma.user.findMany({
+    omit: { password: true },
+    // select: { id: true, name: true },
+  });
+  return users;
 };
 
-export const createUserService = (body: { name: string }) => {
-  // 1. get seluruh data users
-  const result = JSON.parse(getData());
-
-  // 2. ambil latest id
-  const latestId = result.users[result.users.length - 1].id;
-
-  // 3. tambahkan data baru berdasarkan req body
-  result.users.push({
-    id: latestId + 1,
-    name: body.name,
+export const createUserService = async (
+  body: Pick<User, "name" | "email" | "password">,
+) => {
+  await prisma.user.create({
+    data: {
+      name: body.name,
+      email: body.email,
+      password: body.password,
+      role: "USER",
+    },
   });
 
-  // 4. jalankan fungsi writeData berdasarkan data yg sudah ditambahkan
-  writeData(JSON.stringify(result));
-
-  return { message: "Add new user success" };
+  return { message: "create new user success" };
 };
 
-export const getUserService = (id: number) => {
-  // 1. ambil seluruh data
-  const users = getUsersService();
-
-  // 2. looping seluruh isi data untuk mencari berdasarkan id
-  const user = users.find((user: { id: number; name: string }) => {
-    return user.id === id;
+export const getUserService = async (id: number) => {
+  const user = await prisma.user.findUnique({
+    where: { id },
+    omit: { password: true },
   });
 
-  // 3. kalo tidak ketemu kirim response balik 404 / user not found
-  if (!user) {
-    throw new ApiError("User not found", 400);
+  if (!user) throw new ApiError("user not found", 404);
+
+  return user;
+};
+
+export const updateUserService = async (id: number, body: Partial<User>) => {
+  // 1. cek dulu di db ada ga data user berdasarkan id
+  await getUserService(id);
+
+  // 2. kalo user nya update email, cek dulu di db udh ada yg pake atau belom
+  if (body.email) {
+    const userEmail = await prisma.user.findUnique({
+      where: { email: body.email },
+    });
+
+    if (userEmail) {
+      throw new ApiError("email already exist", 400);
+    }
   }
 
-  // 4. kalo ketemu kirim data user nya
-  return user;
+  // 3. update data usernya berdasarkan id
+  await prisma.user.update({
+    where: { id },
+    data: body,
+  });
+
+  return { message: "update user success" };
+};
+
+export const deleteUserService = async (id: number) => {
+  await getUserService(id);
+
+  await prisma.user.delete({
+    where: { id },
+  });
+
+  return { message: "delete user success" };
 };

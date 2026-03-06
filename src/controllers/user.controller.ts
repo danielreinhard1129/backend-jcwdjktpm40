@@ -1,8 +1,10 @@
 import { Request, Response } from "express";
 import {
   createUserService,
+  deleteUserService,
   getUserService,
   getUsersService,
+  updateUserService,
 } from "../services/user.service.js";
 
 export const getUsersController = async (req: Request, res: Response) => {
@@ -10,13 +12,26 @@ export const getUsersController = async (req: Request, res: Response) => {
   res.status(200).send(result);
 };
 
-export const createUserController = (req: Request, res: Response) => {
-  const result = createUserService(req.body);
+export const createUserController = async (req: Request, res: Response) => {
+  const result = await createUserService(req.body);
   res.status(200).send(result);
 };
 
-export const getUserController = (req: Request, res: Response) => {
+export const getUserController = async (req: Request, res: Response) => {
   const id = Number(req.params.id);
-  const result = getUserService(id);
+  const result = await getUserService(id);
+  res.status(200).send(result);
+};
+
+export const updateUserController = async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const body = req.body;
+  const result = await updateUserService(id, body);
+  res.status(200).send(result);
+};
+
+export const deleteUserController = async (req: Request, res: Response) => {
+  const id = Number(req.params.id);
+  const result = await deleteUserService(id);
   res.status(200).send(result);
 };
