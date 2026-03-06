@@ -1,9 +1,11 @@
+import { db } from "../config/db.js";
 import { ApiError } from "../utils/api-error.js";
 import { getData, writeData } from "../utils/data.js";
 
-export const getUsersService = () => {
-  const result = JSON.parse(getData());
-  return result.users;
+export const getUsersService = async () => {
+  const query = "select * from purwadhika.users";
+  const result = await db.query(query);
+  return result.rows;
 };
 
 export const createUserService = (body: { name: string }) => {

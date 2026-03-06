@@ -5,8 +5,8 @@ import {
   getUsersService,
 } from "../services/user.service.js";
 
-export const getUsersController = (req: Request, res: Response) => {
-  const result = getUsersService();
+export const getUsersController = async (req: Request, res: Response) => {
+  const result = await getUsersService();
   res.status(200).send(result);
 };
 
