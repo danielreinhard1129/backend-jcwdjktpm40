@@ -1,25 +1,66 @@
-import { User } from "../generated/prisma/client.js";
+import { Prisma, User } from "../generated/prisma/client.js";
 import { prisma } from "../lib/prisma.js";
+import { PaginationQueryParams } from "../types/pagination.js";
 import { ApiError } from "../utils/api-error.js";
 
-export const getUsersService = async () => {
+interface GetUsersQuery extends PaginationQueryParams {
+  search?: string;
+}
+
+export const getUsersService = async (query: GetUsersQuery) => {
+  const { page, sortBy, sortOrder, take, search } = query;
+
+  const whereClause: Prisma.UserWhereInput = {
+    deletedAt: null,
+  };
+
+  if (search) {
+    whereClause.name = { contains: search, mode: "insensitive" };
+  }
+
   const users = await prisma.user.findMany({
+    where: whereClause,
     omit: { password: true },
-    // select: { id: true, name: true },
+    skip: (page - 1) * take,
+    take: take,
+    orderBy: { [sortBy]: sortOrder },
+    include: {
+      addresses: {
+        select: { street: true, city: true },
+      },
+    },
   });
-  return users;
+
+  const total = await prisma.user.count({ where: whereClause });
+
+  return {
+    data: users,
+    meta: { page, take, total },
+  };
 };
 
 export const createUserService = async (
   body: Pick<User, "name" | "email" | "password">,
 ) => {
-  await prisma.user.create({
-    data: {
-      name: body.name,
-      email: body.email,
-      password: body.password,
-      role: "USER",
-    },
+  await prisma.$transaction(async (tx) => {
+    // process 1
+    const newUser = await tx.user.create({
+      data: {
+        name: body.name,
+        email: body.email,
+        password: body.password,
+        role: "USER",
+      },
+    });
+
+    // process 2
+    await tx.address.create({
+      data: {
+        city: "Jakarta Barat",
+        street: "Jl. Jakarta",
+        userId: newUser.id,
+      },
+    });
   });
 
   return { message: "create new user success" };
@@ -27,7 +68,7 @@ export const createUserService = async (
 
 export const getUserService = async (id: number) => {
   const user = await prisma.user.findUnique({
-    where: { id },
+    where: { id, deletedAt: null },
     omit: { password: true },
   });
 
@@ -63,8 +104,15 @@ export const updateUserService = async (id: number, body: Partial<User>) => {
 export const deleteUserService = async (id: number) => {
   await getUserService(id);
 
-  await prisma.user.delete({
+  // // HARD DELETE
+  // await prisma.user.delete({
+  //   where: { id },
+  // });
+
+  // SOFT DELETE
+  await prisma.user.update({
     where: { id },
+    data: { deletedAt: new Date() },
   });
 
   return { message: "delete user success" };
